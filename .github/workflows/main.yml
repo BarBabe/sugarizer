@@ -9,15 +9,55 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Puppeteer for browser test
+        run: npm install puppeteer --no-save
+
+      - name: Run browser-based Jasmine tests
+        run: |
+          cd sugarizer_jasmine
+          python3 -m http.server 8000 &
+          SERVER_PID=$!
+          cd ..
+          node <<'NODE'
+          const puppeteer = require('puppeteer');
+          (async () => {
+            const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+            const page = await browser.newPage();
+            await page.goto('http://127.0.0.1:8000/SpecRunner.html', { waitUntil: 'networkidle0', timeout: 60000 });
+            const failedCount = await page.evaluate(() => {
+              const failing = document.querySelector('.failingAlert');
+              return failing ? failing.textContent : '';
+            });
+            const pageText = await page.evaluate(() => document.body.innerText);
+            console.log(pageText);
+            await browser.close();
+            if (failedCount && /\d+ failing/.test(failedCount) && !/^\s*$/.test(failedCount)) {
+              throw new Error('Jasmine browser test detected failures: ' + failedCount);
+            }
+          })().catch(err => {
+            console.error(err);
+            process.exit(1);
+          });
+          kill $SERVER_PID
+
       - name: Deploy on Sugarizer Dev Server
         run: echo "Deploy on Sugarizer Dev Server"
-      - name: Update dev.sugarizer.org 
-        uses: appleboy/ssh-action@v0.1.7 
-        with: 
-          host: ${{ secrets.HOST }} 
-          username: ${{ secrets.USERNAME }} 
-          key: ${{ secrets.KEY }} 
-          port: ${{ secrets.PORT }} 
-          script: | 
-            cd sugarizer-dev/sugarizer 
+
+      - name: Update dev.sugarizer.org
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          port: ${{ secrets.PORT }}
+          script: |
+            cd sugarizer-dev/sugarizer
             git pull
