@@ -48,6 +48,7 @@ jobs:
             console.error(err);
             process.exit(1);
           });
+NODE
           kill $SERVER_PID
 
       - name: Deploy on Sugarizer Dev Server
