@@ -33,14 +33,15 @@ jobs:
             const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
             const page = await browser.newPage();
             await page.goto('http://127.0.0.1:8000/SpecRunner.html', { waitUntil: 'networkidle0', timeout: 60000 });
-            const failedCount = await page.evaluate(() => {
-              const failing = document.querySelector('.failingAlert');
-              return failing ? failing.textContent : '';
-            });
+            await page.waitForSelector('.duration', { timeout: 120000 });
             const pageText = await page.evaluate(() => document.body.innerText);
             console.log(pageText);
+            const failedCount = await page.evaluate(() => {
+              const failing = document.querySelector('.failingAlert');
+              return failing ? failing.textContent.trim() : '';
+            });
             await browser.close();
-            if (failedCount && /\d+ failing/.test(failedCount) && !/^\s*$/.test(failedCount)) {
+            if (failedCount && /\d+ failing/.test(failedCount)) {
               throw new Error('Jasmine browser test detected failures: ' + failedCount);
             }
           })().catch(err => {
